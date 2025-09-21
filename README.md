@@ -76,15 +76,12 @@ Makes a chat completion request to OpenAI GPT-5 Nano.
 **Request Body:**
 ```json
 {
-  "messages": [
-    {
-      "role": "user",
-      "content": "Hello, how are you?"
-    }
-  ],
+  "input": "Hello, how are you?",
   "model": "gpt-5-nano",
-  "max_tokens": 150,
-  "temperature": 0.7
+  "max_output_tokens": 150,
+  "temperature": 0.7,
+  "reasoning_effort": "medium",
+  "verbosity": "medium"
 }
 ```
 
@@ -97,15 +94,21 @@ Makes a chat completion request to OpenAI GPT-5 Nano.
     "prompt_tokens": 12,
     "completion_tokens": 17,
     "total_tokens": 29
-  }
+  },
+  "reasoning_effort": "medium",
+  "verbosity": "medium"
 }
 ```
 
 **Parameters:**
-- `messages` (required): Array of chat messages with role ("user", "assistant", "system") and content
+- `input` (required): The text input to be processed by the model
 - `model` (optional): OpenAI model to use (default: "gpt-5-nano")
-- `max_tokens` (optional): Maximum tokens in response (default: 150)
+- `max_output_tokens` (optional): Maximum tokens in response (default: 150)
 - `temperature` (optional): Creativity/randomness (0.0-2.0, default: 0.7)
+- `reasoning_effort` (optional): Depth of reasoning - "minimal", "low", "medium" (default), "high"
+- `verbosity` (optional): Response detail level - "low", "medium" (default), "high"
+- `top_p` (optional): Nucleus sampling parameter (0.0-1.0)
+- `stream` (optional): Stream response as it's generated (default: false)
 
 ## Development
 

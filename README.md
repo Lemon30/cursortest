@@ -1,6 +1,6 @@
 # FastAPI Backend with OpenAI Integration
 
-A FastAPI backend with hello world and OpenAI chat completion endpoints.
+A FastAPI backend with hello world and OpenAI GPT-5 Nano chat completion endpoints.
 
 ## Features
 
@@ -71,7 +71,7 @@ Returns the health status of the API.
 ```
 
 ### POST /chat/completions
-Makes a chat completion request to OpenAI GPT-4.
+Makes a chat completion request to OpenAI GPT-5 Nano.
 
 **Request Body:**
 ```json
@@ -82,7 +82,7 @@ Makes a chat completion request to OpenAI GPT-4.
       "content": "Hello, how are you?"
     }
   ],
-  "model": "gpt-4",
+  "model": "gpt-5-nano",
   "max_tokens": 150,
   "temperature": 0.7
 }
@@ -92,7 +92,7 @@ Makes a chat completion request to OpenAI GPT-4.
 ```json
 {
   "message": "Hello! I'm doing well, thank you for asking. How can I help you today?",
-  "model": "gpt-4",
+  "model": "gpt-5-nano",
   "usage": {
     "prompt_tokens": 12,
     "completion_tokens": 17,
@@ -103,7 +103,7 @@ Makes a chat completion request to OpenAI GPT-4.
 
 **Parameters:**
 - `messages` (required): Array of chat messages with role ("user", "assistant", "system") and content
-- `model` (optional): OpenAI model to use (default: "gpt-4")
+- `model` (optional): OpenAI model to use (default: "gpt-5-nano")
 - `max_tokens` (optional): Maximum tokens in response (default: 150)
 - `temperature` (optional): Creativity/randomness (0.0-2.0, default: 0.7)
 

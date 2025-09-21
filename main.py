@@ -11,7 +11,7 @@ load_dotenv()
 # Create FastAPI instance
 app = FastAPI(
     title="Hello World API with OpenAI",
-    description="A FastAPI backend with hello world and OpenAI chat completion endpoints",
+    description="A FastAPI backend with hello world and OpenAI GPT-5 Nano chat completion endpoints",
     version="1.0.0"
 )
 
@@ -25,7 +25,7 @@ class ChatMessage(BaseModel):
 
 class ChatCompletionRequest(BaseModel):
     messages: List[ChatMessage]
-    model: Optional[str] = "gpt-4"
+    model: Optional[str] = "gpt-5-nano"
     max_tokens: Optional[int] = 150
     temperature: Optional[float] = 0.7
 
@@ -37,7 +37,7 @@ class ChatCompletionResponse(BaseModel):
 @app.post("/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completion(request: ChatCompletionRequest):
     """
-    Chat completion endpoint using OpenAI GPT-4
+    Chat completion endpoint using OpenAI GPT-5 Nano
     Makes a single chat completion API request to OpenAI
     """
     try:

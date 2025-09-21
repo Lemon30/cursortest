@@ -1,5 +1,7 @@
 import os
 import re
+import json
+import time
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl
@@ -7,7 +9,6 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
-import time
 
 # Load environment variables
 load_dotenv()
@@ -22,10 +23,10 @@ app = FastAPI(
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def scrape_linkedin_job(url: str) -> dict:
+def scrape_linkedin_job(url: str) -> str:
     """
-    Scrape LinkedIn job post data
-    Returns job title, company, location, and description
+    Scrape LinkedIn job post HTML content
+    Returns the full HTML text for GPT processing
     """
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -45,123 +46,99 @@ def scrape_linkedin_job(url: str) -> dict:
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Extract job title
-        job_title = ""
-        title_selectors = [
-            'h1.top-card-layout__title',
-            'h1[data-automation-id="jobPostingHeader"]',
-            'h1.jobs-unified-top-card__job-title',
-            'h1'
-        ]
+        # Remove script and style elements to clean up the HTML
+        for script in soup(["script", "style", "noscript"]):
+            script.decompose()
         
-        for selector in title_selectors:
-            title_element = soup.select_one(selector)
-            if title_element:
-                job_title = title_element.get_text(strip=True)
-                break
+        # Get the text content with some structure preserved
+        html_text = soup.get_text(separator='\n', strip=True)
         
-        # Extract company name
-        company = ""
-        company_selectors = [
-            'a.topcard__org-name-link',
-            'a[data-automation-id="jobPostingCompanyLink"]',
-            '.jobs-unified-top-card__company-name a',
-            '.topcard__flavor--black-link'
-        ]
+        # Clean up excessive whitespace while preserving structure
+        html_text = re.sub(r'\n\s*\n', '\n\n', html_text)  # Normalize multiple newlines
+        html_text = re.sub(r' +', ' ', html_text)  # Normalize spaces
         
-        for selector in company_selectors:
-            company_element = soup.select_one(selector)
-            if company_element:
-                company = company_element.get_text(strip=True)
-                break
+        # Limit the text size to avoid token limits (keep first 15000 characters)
+        if len(html_text) > 15000:
+            html_text = html_text[:15000] + "... [truncated]"
         
-        # Extract location
-        location = ""
-        location_selectors = [
-            '.topcard__flavor--bullet',
-            '[data-automation-id="jobPostingLocation"]',
-            '.jobs-unified-top-card__bullet'
-        ]
-        
-        for selector in location_selectors:
-            location_element = soup.select_one(selector)
-            if location_element:
-                location = location_element.get_text(strip=True)
-                break
-        
-        # Extract job description
-        description = ""
-        description_selectors = [
-            '.description__text',
-            '[data-automation-id="jobPostingDescription"]',
-            '.jobs-description-content__text',
-            '.jobs-box__html-content'
-        ]
-        
-        for selector in description_selectors:
-            desc_element = soup.select_one(selector)
-            if desc_element:
-                description = desc_element.get_text(separator='\n', strip=True)
-                break
-        
-        # Clean up description text
-        if description:
-            # Remove extra whitespace and normalize line breaks
-            description = re.sub(r'\n+', '\n', description)
-            description = re.sub(r' +', ' ', description)
-        
-        return {
-            "job_title": job_title or "Not found",
-            "company": company or "Not found", 
-            "location": location or "Not found",
-            "description": description or "Job description not found"
-        }
+        return html_text
         
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch LinkedIn page: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error parsing LinkedIn page: {str(e)}")
 
-async def process_job_description_with_gpt(job_data: dict, extract_format: str) -> str:
+async def process_job_description_with_gpt(html_content: str, extract_format: str) -> dict:
     """
-    Process job description using GPT to extract and structure information
+    Process LinkedIn job HTML content using GPT to extract and structure information
     """
     if extract_format == "raw":
-        return job_data["description"]
+        return {
+            "job_title": "Raw HTML Content",
+            "company": "N/A",
+            "location": "N/A",
+            "description": html_content
+        }
     
-    # Create a structured prompt for GPT
+    # Create a comprehensive prompt for GPT to extract all job information
     prompt = f"""
-    Please analyze and structure this LinkedIn job posting information:
+    You are analyzing a LinkedIn job posting page. Extract the following information from this HTML content:
 
-    Job Title: {job_data["job_title"]}
-    Company: {job_data["company"]}
-    Location: {job_data["location"]}
+    HTML Content:
+    {html_content}
     
-    Raw Job Description:
-    {job_data["description"]}
+    Please extract and return the following information in JSON format:
+    {{
+        "job_title": "exact job title",
+        "company": "company name",
+        "location": "job location",
+        "description": "structured job description with clear sections"
+    }}
     
-    Please provide a clean, well-structured summary that includes:
-    1. Key responsibilities
-    2. Required qualifications
-    3. Preferred qualifications (if mentioned)
-    4. Benefits/perks (if mentioned)
-    5. Company information (if mentioned)
+    For the description, please structure it professionally with clear sections including:
+    - Key responsibilities
+    - Required qualifications
+    - Preferred qualifications (if mentioned)
+    - Benefits/perks (if mentioned)
+    - Company information (if mentioned)
     
-    Format the response in a clear, professional manner with proper headings and bullet points.
+    Format the description with proper headings and bullet points for readability.
+    If any information is not found, use "Not found" as the value.
+    
+    Return ONLY the JSON object, no additional text.
     """
     
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a professional job description analyzer. Extract and structure job posting information clearly and professionally."},
+                {"role": "system", "content": "You are a professional job information extractor. Extract job details from LinkedIn HTML content and return them in the exact JSON format requested. Be thorough and accurate."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=1500,
-            temperature=0.3
+            max_tokens=2000,
+            temperature=0.1
         )
         
-        return response.choices[0].message.content
+        # Parse the JSON response from GPT
+        gpt_response = response.choices[0].message.content.strip()
+        
+        # Remove any markdown formatting if present
+        if gpt_response.startswith("```json"):
+            gpt_response = gpt_response[7:]
+        if gpt_response.endswith("```"):
+            gpt_response = gpt_response[:-3]
+        
+        try:
+            job_data = json.loads(gpt_response)
+            return job_data
+        except json.JSONDecodeError:
+            # Fallback if JSON parsing fails
+            return {
+                "job_title": "Parsing Error",
+                "company": "Parsing Error",
+                "location": "Parsing Error",
+                "description": gpt_response
+            }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GPT processing error: {str(e)}")
@@ -218,11 +195,11 @@ async def extract_linkedin_job(request: LinkedInJobRequest):
                 detail="Invalid LinkedIn job URL. Please provide a valid LinkedIn job posting URL."
             )
         
-        # Scrape LinkedIn job data
-        job_data = scrape_linkedin_job(url_str)
+        # Scrape LinkedIn job HTML content
+        html_content = scrape_linkedin_job(url_str)
         
-        # Process with GPT
-        processed_description = await process_job_description_with_gpt(job_data, request.extract_format)
+        # Process with GPT to extract job information
+        job_data = await process_job_description_with_gpt(html_content, request.extract_format)
         
         processing_time = time.time() - start_time
         
@@ -230,7 +207,7 @@ async def extract_linkedin_job(request: LinkedInJobRequest):
             job_title=job_data["job_title"],
             company=job_data["company"],
             location=job_data["location"],
-            job_description=processed_description,
+            job_description=job_data["description"],
             extracted_url=url_str,
             processing_time=round(processing_time, 2)
         )

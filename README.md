@@ -7,6 +7,7 @@ A FastAPI backend with hello world and OpenAI GPT-4o Mini chat completion endpoi
 - Hello World endpoint at `/`
 - Health check endpoint at `/health`
 - OpenAI chat completion endpoint at `/chat/completions`
+- LinkedIn job description extraction endpoint at `/extract/job-description`
 - Interactive API documentation (Swagger UI)
 - Automatic OpenAPI schema generation
 - Proper error handling and request validation
@@ -43,6 +44,7 @@ The API will be available at:
 - **Main endpoint**: http://localhost:8000/
 - **Health check**: http://localhost:8000/health
 - **Chat completion**: http://localhost:8000/chat/completions
+- **Job description extraction**: http://localhost:8000/extract/job-description
 - **Interactive docs (Swagger UI)**: http://localhost:8000/docs
 - **Alternative docs (ReDoc)**: http://localhost:8000/redoc
 - **OpenAPI schema**: http://localhost:8000/openapi.json
@@ -100,6 +102,42 @@ Makes a chat completion request to OpenAI GPT-4o Mini.
   }
 }
 ```
+
+### POST /extract/job-description
+Extracts a job description from a LinkedIn job post URL using OpenAI GPT-4o Mini.
+
+Note: LinkedIn may block unauthenticated requests. If the HTML cannot be fetched, the endpoint returns a 400 error.
+
+**Request Body:**
+```json
+{
+  "url": "https://www.linkedin.com/jobs/view/123456789/",
+  "model": "gpt-4o-mini",
+  "max_tokens": 500,
+  "temperature": 0.2
+}
+```
+
+**Response:**
+```json
+{
+  "job_description": "As a Senior Backend Engineer, you will...",
+  "source_url": "https://www.linkedin.com/jobs/view/123456789/",
+  "model": "gpt-4o-mini",
+  "usage": {
+    "prompt_tokens": 800,
+    "completion_tokens": 300,
+    "total_tokens": 1100
+  },
+  "raw_text_excerpt": "We are looking for..."
+}
+```
+
+**Parameters:**
+- `url` (required): Full LinkedIn job post URL
+- `model` (optional): OpenAI model (default: `gpt-4o-mini`)
+- `max_tokens` (optional): Max tokens for the completion (default: 500)
+- `temperature` (optional): Creativity (default: 0.2)
 
 **Parameters:**
 - `messages` (required): Array of chat messages with role ("user", "assistant", "system") and content
